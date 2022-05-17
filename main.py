@@ -12,7 +12,7 @@ matplotlib.use('QtAgg')
 
 
 WINDOW_SIZE = 512
-HOP_SIZE = 128
+HOP_SIZE = 256 # 128
 
 
 def hann_window(k):
@@ -21,17 +21,17 @@ def hann_window(k):
 # Create hann window up front
 hann = hann_window(WINDOW_SIZE)
 
-sample_rate, data = wavfile.read('imperial-march.wav')
-#sample_rate, data = wavfile.read('gettysburg.wav')
+#sample_rate, data = wavfile.read('imperial-march.wav')
+sample_rate, data = wavfile.read('gettysburg.wav')
 
-data = data[data.size // 2:]
+#data = data[-data.size // 3:]
 
-print(data[:10])
+#print(data[:10])
 
 #data, sample_rate = librosa.load('gettysburg.wav')
 
 
-print(data[:10])
+#print(data[:10])
 
 
 
@@ -39,35 +39,59 @@ print(data[:10])
 #X = librosa.stft(data)
 #print(X.shape)
 #Xdb = librosa.amplitude_to_db(abs(X))
-#plt.figure(figsize=(14, 5))
+#<F2>plt.figure(figsize=(14, 5))
 #librosa.display.specshow(Xdb, sr=sample_rate, x_axis='time', y_axis='hz')
 #plt.colorbar()
 #plt.show()
 
-# Total frames for 
+
+
+# Total frames for
+
+
+
+nth_bin = 1 # 2
+max_log = 16.0
+
 n_frames = int((data.size - WINDOW_SIZE) / HOP_SIZE) + 1
 
+frame  = np.zeros((WINDOW_SIZE // nth_bin, n_frames))
 
-frame  = np.zeros((WINDOW_SIZE, n_frames))
+
+
+
+def calc_strip(window):
+	tapered = window * hann
+	transform = rfft(tapered)
+	magnitude = np.abs(transform)[::-nth_bin]
+	log = np.log(magnitude)
+	clipped = np.clip(log, 0, max_log) # Max 16 is a design choice and not based on anything
+	normalized = clipped / max_log
+	return normalized
+
+
+#start = time.time()
+
+
+
+
 
 
 for i in range(n_frames):
-
 	window = data[i*HOP_SIZE:i*HOP_SIZE + WINDOW_SIZE]
-	
-	tapered = window * hann
-	
-	transform = rfft(tapered)
+	#tapered = window * hann
+	#transform = rfft(tapered)
+	#magnitude = np.abs(transform)[::-nth_bin]
+	#log = np.log(magnitude)
+	#clipped = np.clip(log, 0, max_log) # Max 16 is a design choice and not based on anything
+	#normalized = clipped / max_log
+	frame[:, i] = calc_strip(window)#normalized#[::-nth_bin]
 
-	magnitude = np.abs(transform)
-	
-	log = np.log(magnitude)
-	
-	clipped = np.clip(log, 0, 15) # Max 15 is a design choice and not based on anything
-	
-	normalized = clipped / 15.0 
+#end = time.time()
 
-	frame[:, i] = normalized[::-1]
+#print((1 / ((end-start) / n_frames)) / (data.size / sample_rate))
+
+#print(frame.shape)
 
 
 plt.imshow(frame, cmap='inferno')
