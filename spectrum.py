@@ -1,12 +1,14 @@
+import atexit
 import numpy as np
 import os
 import pyaudio
+import threading
 import time
 from functools import partial
 from matplotlib import cm
 from PyQt5.QtCore import Qt, QBasicTimer, QTimer, QUrl
 from PyQt5.QtGui import QIcon, QImage, QPixmap
-from PyQt5.QtMultimedia import QMediaContent, QMediaPlayer
+from PyQt5.QtMultimedia import QMediaContent, QMediaPlayer, QAudioRecorder, QAudioEncoderSettings, QMultimedia
 from PyQt5.QtWidgets import QApplication, QWidget, QGridLayout, QStackedWidget, QLabel, QVBoxLayout, QHBoxLayout
 from scipy.fftpack import rfft, rfftfreq
 from scipy.io import wavfile
@@ -38,6 +40,10 @@ sample_rate, data = wavfile.read('gettysburg.wav')
 
 
 
+print(data.nbytes)
+
+
+
 
 def calc_strip(window):
 	tapered = window * hann
@@ -55,6 +61,78 @@ def calc_strip(window):
 
 
 
+class Microphone:
+	
+	def __init__(self, rate=22050, chunksize=1024):
+		self.rate = rate
+		self.chunksize = chunksize
+		self.audio = pyaudio.PyAudio()
+		self.stream = self.audio.open(format=pyaudio.paInt16,
+			channels=1,
+			rate=self.rate,
+			input=True,
+			frames_per_buffer=self.chunksize,
+			stream_callback=self.new_frame)
+		self.lock = threading.Lock()
+		self.stop = False
+		self.frames = []
+		atexit.register(self.close)
+
+	def new_frame(self, data, frame_count, time_info, status):
+		data = np.frombuffer(data, dtype=np.int16)
+		with self.lock:
+			self.frames.append(data)
+			if self.stop:
+				return None, pyaudio.paComplete
+		return None, pyaudio.paContinue
+
+	def get_frames(self):
+		with self.lock:
+			frames = self.frames
+			self.frames = []
+			return frames
+
+	def start(self):
+		self.stream.start_stream()
+
+	def close(self):
+		with self.lock:
+			self.stop = True
+		self.stream.close()
+		self.audio.terminate()
+
+
+
+
+
+
+
+class Buffer:
+
+	def __init__(self):
+		self.data = []
+		self.index = 0
+
+	def add(self, buf):
+		self.data += buf.tolist()
+	
+	def available(self):
+		if self.index + WINDOW_SIZE <= len(self.data):
+			return True
+		return False
+
+	def get(self):
+		frame = self.data[self.index:self.index + WINDOW_SIZE]
+		self.index += HOP_SIZE
+		return frame
+
+
+
+
+
+
+
+
 class Main(QWidget):
 
 	def __init__(self):
@@ -63,7 +141,7 @@ class Main(QWidget):
 		self.init_layout()
 		
 		self.texture = np.zeros((256, SPEC_WIDTH, 3), dtype=np.uint8)
-		self.update_texture()
+		self.redraw_texture()
 		
 		self.index = 0
 		
@@ -76,7 +154,58 @@ class Main(QWidget):
 		self.player.positionChanged.connect(self.on_position)
 		self.player.durationChanged.connect(self.on_duration)
 		self.player.setMedia(media)
-		self.player.play()
+		#self.player.play()
+		
+		self.buffer = Buffer()
+
+		self.recorder = MicrophoneRecorder()
+		self.recorder.start()
+
+		self.source = 'microphone'
+
+#		self.recorder = QAudioRecorder()
+		
+#		selected_audio_input = self.recorder.audioInput()
+#		print(selected_audio_input)
+		
+		#print("Audio Inputs:")
+		#for i, audio_input in enumerate(self.recorder.audioInputs()):
+		#	print(f"{i}. {audio_input}")
+		
+#		self.recorder.setAudioInput(selected_audio_input)
+
+#		settings = QAudioEncoderSettings()
+
+#		selected_codec = ""
+		#print("Codecs:")
+		#for i, codec in enumerate(self.recorder.supportedAudioCodecs()):
+		#	print(f"{i}. {codec}")
+		
+#		print(f"selected codec:{selected_codec}")
+#		settings.setCodec(selected_codec)
+
+#		selected_sample_rate = 0
+#		print("Sample rates:")
+#		sample_rates, continuous = self.recorder.supportedAudioSampleRates()
+#		for i, sample_rate in enumerate(sample_rates):
+#			print(f"{i}. {sample_rate}")
+#		settings.setSampleRate(selected_sample_rate)
+		
+#		bit_rate = 0  # other values: 32000, 64000,96000, 128000
+#		settings.setBitRate(bit_rate)
+
+#		channels = -1  # other values: 1, 2, 4
+#		settings.setChannelCount(channels)
+#		settings.setQuality(QMultimedia.NormalQuality)
+#		settings.setEncodingMode(QMultimedia.ConstantBitRateEncoding)
+		
+
+		#print("Containers")
+		#selected_container = ""
+		#for i, container in enumerate(self.recorder.supportedContainers()):
+		#	print(f"{i}. {container}")
+
+
 
 		self._timer = QBasicTimer()
 		self._timer.start(1000 // 60, self)
@@ -88,7 +217,8 @@ class Main(QWidget):
 
 	
 	def on_media_status(self, status):
-		print('status', status)
+		pass
+		#		print('status', status)
 		#if status == QMediaPlayer.EndOfMedia:
 	#		self.on_end()
 
@@ -112,34 +242,55 @@ class Main(QWidget):
 #			text = f'{h}:{text}'
 #		self.duration.setText(text)
 	
-	def next_window(self):
-		#texture = self.texture.copy()
+#	def next_window(self):
+#		#texture = self.texture.copy()
+#		self.texture[:, :-1] = self.texture[:, 1:]
+#		
+#		window = data[self.index*HOP_SIZE:self.index*HOP_SIZE + WINDOW_SIZE]
+#		if window.size != 512:
+#			return
+#		
+#		strip = calc_strip(window)
+#		strip = color_map(strip)[:,:3]
+#		strip = (strip * 255).astype(np.uint8)
+#		self.texture[:, -1, :] = strip
+#		
+#		self.index += 1
+
+
+
+	def timerEvent(self, event):
+#		seconds = self.player.position() / 1000
+#		while (self.index * HOP_SIZE + WINDOW_SIZE) / sample_rate < seconds + 0.0:
+#			self.next_window()
+#		
+#		self.update_texture()
+		
+		if self.source == 'microphone':
+			# Read new frames
+			frames = self.recorder.get_frames()
+			for frame in frames:
+				self.buffer.add(frame)
+			# Add new strips to texture
+			while self.buffer.available():
+				frame = self.buffer.get()
+				self.update_texture(frame)
+			# Redraw spectrogram
+			self.redraw_texture()
+
+
+	def update_texture(self, window):
 		self.texture[:, :-1] = self.texture[:, 1:]
-		
-		window = data[self.index*HOP_SIZE:self.index*HOP_SIZE + WINDOW_SIZE]
-		if window.size != 512:
-			return
-		
 		strip = calc_strip(window)
 		strip = color_map(strip)[:,:3]
 		strip = (strip * 255).astype(np.uint8)
 		self.texture[:, -1, :] = strip
-		
-		self.index += 1
 
 
-	def update_texture(self, spec=None):
+	def redraw_texture(self, spec=None):
 		h, w, c = self.texture.shape
 		new_image = QImage(self.texture.data, w, h, c*w, QImage.Format_RGB888)
 		self.image.setPixmap(QPixmap(new_image))
-
-
-	def timerEvent(self, event):
-		seconds = self.player.position() / 1000
-		while (self.index * HOP_SIZE + WINDOW_SIZE) / sample_rate < seconds + 0.0:
-			self.next_window()
-		
-		self.update_texture()
 
 
 	def init_layout(self):
