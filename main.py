@@ -14,6 +14,9 @@ from scipy.fftpack import rfft, rfftfreq
 from scipy.io import wavfile
 
 
+from graphics import Surface
+
+
 
 
 
@@ -188,7 +191,7 @@ class Main(QWidget):
 		self.init_layout()
 		self.spectrogram = Spectrogram()
 		self.texture = np.zeros((self.TEXTURE_HEIGHT, self.TEXTURE_WIDTH, 3), dtype=np.uint8)
-		self.redraw_texture()
+		#self.redraw_texture()
 		self.buffer = Buffer()
 		self.microphone = Microphone()
 		#self.microphone.start()
@@ -225,10 +228,12 @@ class Main(QWidget):
 		strip = self.spectrogram.get(window)
 		self.texture[:, -1, :] = strip
 
-	def redraw_texture(self, spec=None):
-		h, w, c = self.texture.shape
-		new_image = QImage(self.texture.data, w, h, c*w, QImage.Format_RGB888)
-		self.image.setPixmap(QPixmap(new_image))
+	def redraw_texture(self):
+		#h, w, c = self.texture.shape
+		#new_image = QImage(self.texture.data, w, h, c*w, QImage.Format_RGB888)
+		#self.image.setPixmap(QPixmap(new_image))
+		self.image.set_texture(self.texture.copy())
+		#pass 
 
 	def init_layout(self):
 		# Load styles
@@ -243,7 +248,9 @@ class Main(QWidget):
 			font-size: 10px;
 			font-weight: bold;
 		'''
-		self.image = QLabel()
+#		self.image = QLabel()
+		self.image = Surface()
+		self.image.setFixedSize(1024, 256)
 		
 		time_axis = QWidget()
 		time_axis.setFixedHeight(AXIS_HEIGHT)
