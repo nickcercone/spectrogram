@@ -1,420 +1,330 @@
-#import librosa
-#import librosa.display
-import math
-import matplotlib.pyplot as plt
+import atexit
 import numpy as np
+import os
+import pyaudio
+import threading
 import time
+from functools import partial
+from matplotlib import cm
+from PyQt5.QtCore import Qt, QBasicTimer, QTimer, QUrl
+from PyQt5.QtGui import QIcon, QImage, QPixmap
+from PyQt5.QtMultimedia import QMediaContent, QMediaPlayer, QAudioRecorder, QAudioEncoderSettings, QMultimedia
+from PyQt5.QtWidgets import QApplication, QWidget, QGridLayout, QStackedWidget, QLabel, QVBoxLayout, QHBoxLayout
 from scipy.fftpack import rfft, rfftfreq
 from scipy.io import wavfile
 
-import matplotlib
-matplotlib.use('QtAgg')
-
-
-WINDOW_SIZE = 512
-HOP_SIZE = 256 # 128
-
-
-def hann_window(k):
-	return 0.5 * (1 - np.cos((2 * np.pi * np.arange(1, k+1)) / (k-1)))
-
-# Create hann window up front
-hann = hann_window(WINDOW_SIZE)
-
-#sample_rate, data = wavfile.read('imperial-march.wav')
-sample_rate, data = wavfile.read('gettysburg.wav')
-
-#data = data[-data.size // 3:]
-
-#print(data[:10])
-
-#data, sample_rate = librosa.load('gettysburg.wav')
-
-
-#print(data[:10])
-
-
-
-#print(sample_rate)
-#X = librosa.stft(data)
-#print(X.shape)
-#Xdb = librosa.amplitude_to_db(abs(X))
-#<F2>plt.figure(figsize=(14, 5))
-#librosa.display.specshow(Xdb, sr=sample_rate, x_axis='time', y_axis='hz')
-#plt.colorbar()
-#plt.show()
-
-
-
-# Total frames for
-
-
-
-nth_bin = 1 # 2
-max_log = 16.0
-
-n_frames = int((data.size - WINDOW_SIZE) / HOP_SIZE) + 1
-
-frame  = np.zeros((WINDOW_SIZE // nth_bin, n_frames))
 
 
 
 
-def calc_strip(window):
-	tapered = window * hann
-	transform = rfft(tapered)
-	magnitude = np.abs(transform)[::-nth_bin]
-	log = np.log(magnitude)
-	clipped = np.clip(log, 0, max_log) # Max 16 is a design choice and not based on anything
-	normalized = clipped / max_log
-	return normalized
-
-
-#start = time.time()
-
-
-
-
-
-
-for i in range(n_frames):
-	window = data[i*HOP_SIZE:i*HOP_SIZE + WINDOW_SIZE]
-	#tapered = window * hann
-	#transform = rfft(tapered)
-	#magnitude = np.abs(transform)[::-nth_bin]
-	#log = np.log(magnitude)
-	#clipped = np.clip(log, 0, max_log) # Max 16 is a design choice and not based on anything
-	#normalized = clipped / max_log
-	frame[:, i] = calc_strip(window)#normalized#[::-nth_bin]
-
-#end = time.time()
-
-#print((1 / ((end-start) / n_frames)) / (data.size / sample_rate))
-
-#print(frame.shape)
-
-
-plt.imshow(frame, cmap='inferno')
-plt.colorbar()
-plt.show()
-
-
-
-
-
-
-
-#dB = 20 * np.log10(magnitude)
-#dB = librosa.amplitude_to_db(magnitude)
-
-
-
-
-#print('Total samples:', data.size, ' duration:', data.size / sample_rate)
-
-#plt.plot(data[:WINDOW_SIZE])
-#plt.xlabel('Sample Index')
-#plt.ylabel('Amplitude')
-#plt.show()
-
-
-
-
-
-#hann = hann_window(WINDOW_SIZE)
-
-#plt.plot(hann)
-#plt.show()
-
-
-
-
-#tapered = data[:WINDOW_SIZE] * hann
-
-#plt.plot(tapered)
-#plt.xlabel('Sample Index')
-#plt.ylabel('Amplitude')
-#plt.show()
+WINDOW_SIZE = 1024
+HOP_SIZE    = 256
+NTH_BIN     = 4
+SAMPLE_RATE = 22050
 
 
 
 
 
 #x = rfftfreq(WINDOW_SIZE, 1 / sample_rate)
-#y = rfft(tapered)
-#y = np.abs(y)
 
-#print(x.size, y.size)
 
 
-#plt.plot(x, y)
-#plt.xlabel('Frequency')
-#plt.ylabel('Amplitude')
-#plt.ticklabel_format(style='plain')
-#plt.show()
 
+class Spectrogram:
 
+	MAX_LOG = 16.0
 
-
-
-
-
-
-
-
-
-
-#BINS_PER_SECOND = 32
-
-
-
-
-
-#start = time.time()
-
-
-
-
-
-# def fft_for_segment(i, dt=0.1):
-#	h = sample_rate * dt
-#	a = int( i    * h)
-#	b = int((i+1) * h)
-#	sample = data[a:b]
-#	x = rfftfreq(b-a, 1 / sample_rate)
-#	y = rfft(sample)
-#	y = np.abs(y)
-#	return x, y
-
-
-
-
-
-# def binify(arr, n_bins):
-#	'''
-#	Take a 1D numpy array of any length and break it up into n bins. If the
-#	data does not fit neatly into n bins and contains a remainder, just throw
-#	that extra little bit away.
-#	'''
-#	total = arr.shape[0]
-#	remainder = total % n_bins
-#	# Trim from the end of the buffer if needed so that we can reshape evenly
-#	if remainder > 0:
-#		print(remainder)
-#		arr = arr[:-remainder]
-#		total = arr.shape[0]
-#	
-#	return arr.reshape(n_bins, -1)
-
-
-
-
-
-# def equalish_bins(array, n):
-#	bins = []
-#	for i in range(n):
-#		a = int(( i    / n) * array.size)
-#		b = int(((i+1) / n) * array.size)
-#		bins.append(array[a:b])
-#	return bins
-
-
-# def anchor_point(i, sample_rate):
-#	return int((i / BINS_PER_SECOND) * sample_rate) 
-
-
-# Bin audio samples into exactly BINS_PER_SECOND for every sample_rate samples
-
-#time_bins = []
-
-#n_time_bins = math.ceil(data.size / (sample_rate / BINS_PER_SECOND))
-
-
-#for i in range(n_time_bins):
-#	a = anchor_point(i,   sample_rate)
-#	b = anchor_point(i+1, sample_rate)
-#	time_bin = data[a:b]
-#	time_bins.append(time_bin)
-
-
-# Fast Discrete Fourier Transform each time bin
-
-#transform_bins = []
-
-#for time_bin in time_bins:
-#	x = rfftfreq(time_bin.size, 1 / sample_rate)
-#	y = rfft(time_bin)
-#	y = np.abs(y)
-#	transform_bins.append([x, y])
-
-#x, y = transform_bins[0]
-
-#print(x.size, y.size)
-
-
-#plt.plot(x, y)
-#plt.xlabel('Frequency')
-#plt.ylabel('Amplitude')
-#plt.ticklabel_format(style='plain')
-#plt.show()
-
-
-#pixel_w = len(transform_bins)
-#pixel_h = 256*2
-
-#frame = np.zeros((pixel_h, pixel_w*2))
-
-#for wi in range(pixel_w):
-#	_, y = transform_bins[wi]
-#
-#	bins = equalish_bins(y, pixel_h)
-#
-#	for hi in range(pixel_h):
-#		frame[pixel_h-hi-1, wi*2:(wi+1)*2] = np.log(bins[hi].max())
-
-
-
-#print(time.time()-start)
-
-
-
-#plt.imshow(frame)
-#plt.show()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#total = int(np.ceil(data.shape[0] / (sample_rate * dt)))
-
-
-
-#frame = np.zeros(256, total)
-
-
-
-#for i in range(int(total)):
-#	a = int( i    * sample_rate * dt)
-#	b = int((i+1) * sample_rate * dt)
-#	sample = data[a:b]
-#	n = sample.shape[0]
-#	x = rfftfreq(n, 1 / sample_rate)
-#	y = rfft(sample)
-#	y = np.abs(y)
-#	print(x.shape, y.shape)
+	def __init__(self, theme='inferno'):
+		self.color_map = cm.get_cmap(theme, 256)
+		self.hann = self.hann_window(WINDOW_SIZE)
+		
+	def hann_window(self, k):
+		return 0.5 * (1 - np.cos((2 * np.pi * np.arange(1, k+1)) / (k-1)))
 	
-
-
-#sample_rate = 97
-
-#indices = np.arange(sample_rate)
-
-#print(indices)
-
-#frame_rate = 10
-
-
-
-
-
-#for i in range(frame_rate):
-
-	#a =  i    / frame_rate
-	#b = (i+1) / frame_rate
-	#a = int(a * sample_rate)
-	#b = int(b * sample_rate)
-	#print(a, b)
-#	print(indices[a:b])
+	def get(self, window):
+		tapered = window * self.hann
+		transform = rfft(tapered)
+		magnitude = np.abs(transform)[::-NTH_BIN]
+		log = np.log(magnitude)
+		clipped = np.clip(log, 0, self.MAX_LOG) # Max 16 is a design choice and not based on anything
+		normalized = clipped / self.MAX_LOG
+		strip = self.color_map(normalized)[:,:3]
+		strip = (strip * 255).astype(np.uint8)
+		return strip
 
 
 
 
 
 
-
-
-
-
-#print(total, 176, total / 176)
-
-
-
-
-#print(n)
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-#x, y = fft_for_segment(0, dt=1)
-
-#print(x)
-#print(y)
-
-#plt.plot(data)
-#plt.show()
-#duration = data.shape[0] / sample_rate
-#xf = rfftfreq(data.shape[0], 1 / sample_rate)
-#yf = rfft(data)
-#xf = xf[:5000]
-#yf = yf[:5000]
-#print('n', n)
-
-#for i in range(10):
-
-#	x, y = fft_for_segment(i, 0.1)
-	#print(x.shape, y.shape)
-#	print(x.shape, y.shape)
+class Microphone:
 	
-#	plt.plot(x, y)
-#	plt.xlabel('Frequency')
-#	plt.ylabel('Amplitude')
-#	plt.ticklabel_format(style='plain')
-#	plt.show()
+	def __init__(self, rate=22050, chunksize=1024):
+		self.rate = rate
+		self.chunksize = chunksize
+		self.lock = threading.Lock()
+		self.stop = False
+		self.frames = []
+		self.audio = pyaudio.PyAudio()
+		self.stream = self.audio.open(
+			format=pyaudio.paInt16,
+			channels=1,
+			rate=self.rate,
+			input=True,
+			frames_per_buffer=self.chunksize,
+			stream_callback=self.callback)
+		atexit.register(self.close)
+
+	def callback(self, data, frame_count, time_info, status):
+		data = np.frombuffer(data, dtype=np.int16)
+		with self.lock:
+			self.frames.append(data)
+			if self.stop:
+				return None, pyaudio.paComplete
+		return None, pyaudio.paContinue
+
+	def get_frames(self):
+		with self.lock:
+			frames = self.frames
+			self.frames = []
+			return frames
+
+	def start(self):
+		self.stream.start_stream()
+
+	def close(self):
+		with self.lock:
+			self.stop = True
+		self.stream.close()
+		self.audio.terminate()
 
 
 
-#plt.plot(data)
-#plt.show()
+
+
+
+
+class File:
+	
+	def __init__(self, filename='audio/gettysburg.wav', chunksize=1024):
+		self.rate, self.data = wavfile.read(filename)
+		self.chunksize = chunksize
+		self.index = 0
+		self.lock = threading.Lock()
+		self.stop = False
+		self.frames = []
+		self.audio = pyaudio.PyAudio()
+		self.stream = self.audio.open(
+			format=pyaudio.paInt16,
+			channels=1,
+			rate=self.rate,
+			output=True,
+			stream_callback=self.callback)
+		atexit.register(self.close)
+		
+	def callback(self, in_data, frame_count, time_info, status):
+		data = self.data[self.index:self.index + self.chunksize]
+		self.index += self.chunksize
+		with self.lock:
+			self.frames.append(data)
+		return (data, pyaudio.paContinue)
+
+	def get_frames(self):
+		with self.lock:
+			frames = self.frames
+			self.frames = []
+			return frames
+
+	def start(self):
+		self.stream.start_stream()
+
+	def close(self):
+		with self.lock:
+			self.stop = True
+		self.stream.close()
+		self.audio.terminate()
+
+
+
+
+
+
+
+class Buffer:
+
+	def __init__(self):
+		self.data = []
+		self.index = 0
+
+	def add(self, buf):
+		self.data += buf.tolist()
+	
+	def available(self):
+		if self.index + WINDOW_SIZE <= len(self.data):
+			return True
+		return False
+
+	def get(self):
+		frame = self.data[self.index:self.index + WINDOW_SIZE]
+		self.index += HOP_SIZE
+		return frame
+
+
+
+
+
+
+
+
+class Main(QWidget):
+
+	TIME_UNIT_WIDTH = 180
+	TEXTURE_WIDTH = 1024
+	TEXTURE_HEIGHT = WINDOW_SIZE // NTH_BIN
+	
+	def __init__(self):
+		super().__init__()
+		self.init_layout()
+		self.spectrogram = Spectrogram()
+		self.texture = np.zeros((self.TEXTURE_HEIGHT, self.TEXTURE_WIDTH, 3), dtype=np.uint8)
+		self.redraw_texture()
+		self.buffer = Buffer()
+		self.microphone = Microphone()
+		#self.microphone.start()
+		self.file = File()
+		self.file.start()
+		#self.source = 'microphone'
+		self.source = 'file'
+		self._timer = QBasicTimer()
+		self._timer.start(1000 // 30, self)
+
+	def timerEvent(self, event):
+		if self.source == 'microphone':
+			frames = self.microphone.get_frames()
+
+		if self.source == 'file':
+			frames = self.file.get_frames()
+		
+		for frame in frames:
+			self.buffer.add(frame)
+		# Add new strips to texture
+		count = 0
+		while self.buffer.available():
+			frame = self.buffer.get()
+			self.update_texture(frame)
+			count += 1
+		#	print(count)
+			if count == 6:
+				break
+		# Redraw spectrogram
+		self.redraw_texture()
+
+	def update_texture(self, window):
+		self.texture[:, :-1] = self.texture[:, 1:]
+		strip = self.spectrogram.get(window)
+		self.texture[:, -1, :] = strip
+
+	def redraw_texture(self, spec=None):
+		h, w, c = self.texture.shape
+		new_image = QImage(self.texture.data, w, h, c*w, QImage.Format_RGB888)
+		self.image.setPixmap(QPixmap(new_image))
+
+	def init_layout(self):
+		# Load styles
+		self.setStyleSheet('background-color: #141414')
+		
+		AXIS_WIDTH = 64
+		AXIS_HEIGHT = 25
+		
+		text_styles = '''
+			color: #70737b;
+			font-family: mono;
+			font-size: 10px;
+			font-weight: bold;
+		'''
+		self.image = QLabel()
+		
+		time_axis = QWidget()
+		time_axis.setFixedHeight(AXIS_HEIGHT)
+		# Add all ticks and labels to time axis
+		for i in range(self.TEXTURE_WIDTH // self.TIME_UNIT_WIDTH + 1):
+			x = self.TEXTURE_WIDTH - (i+1) * self.TIME_UNIT_WIDTH
+			# Add ticks
+			n_ticks = 20
+			for j in range(n_ticks):
+				if j in [1, 2, 3]:
+					continue
+				tick = QWidget(time_axis)
+				tick.setStyleSheet(f'background-color: {"#4a4a4f" if j == 0 else "#25252c"};')
+				tick.setGeometry(x + int(self.TIME_UNIT_WIDTH / n_ticks * j), 6, 1, AXIS_HEIGHT-11)
+			# Add seconds text	
+			time = QLabel(f'-{i+1}s', time_axis)
+			time.setStyleSheet(text_styles)
+			time.move(x+8, 6)
+		
+		freq_axis = QWidget()
+		freq_axis.setFixedWidth(AXIS_WIDTH)
+		# Add all ticks and labels to frequency axis
+		for freq in [0, 2500, 5000, 7500, 10000]:
+			y = int(self.TEXTURE_HEIGHT - (freq / (SAMPLE_RATE / 2)) * self.TEXTURE_HEIGHT)
+			# Add ticks
+			tick = QWidget(freq_axis)
+			tick.setStyleSheet('background-color: #4a4a4f;')
+			tick.setGeometry(AXIS_WIDTH-7, y, 4, 1)
+			# Add seconds text	
+			time = QLabel(f'{freq}hz', freq_axis)
+			time.setStyleSheet(text_styles)
+			time.setGeometry(0, y-5, AXIS_WIDTH-12, 10)
+			time.setAlignment(Qt.AlignRight | Qt.AlignVCenter)
+		
+		image_time_parent = QWidget()
+		
+		v_box = QVBoxLayout(image_time_parent)
+		v_box.setContentsMargins(0,0,0,0)
+		v_box.setSpacing(0)
+		v_box.addWidget(self.image)
+		v_box.addWidget(time_axis)
+		
+		h_box = QHBoxLayout(self)
+		h_box.setContentsMargins(0,0,0,0)
+		h_box.setSpacing(0)
+		h_box.addWidget(freq_axis)
+		h_box.addWidget(image_time_parent)
+
+
+	def keyPressEvent(self, event):
+		if event.key() == Qt.Key_Escape:
+			self.close()
+
+
+
+
+
+
+
+
+if __name__ == '__main__':
+	
+	# Correctly scale on high res monitors
+	QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
+
+	# Use highdpi icons
+	QApplication.setAttribute(Qt.AA_UseHighDpiPixmaps, True)
+	
+	# Create and run glwidget
+	app = QApplication([])
+
+	# Create window
+	main = Main()
+	main.show()
+	
+	# Run main loop
+	app.exit(app.exec())
+
+
+
+
+
 
 

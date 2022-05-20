@@ -1,9 +1,8 @@
-run:
+
+main:
 	. bin/activate && python main.py
 
-sound:
-	. bin/activate && python sound.py
+spec-plot:
+	. bin/activate && python spec_plot.py
 
-spectrum:
-	. bin/activate && python spectrum.py
 
