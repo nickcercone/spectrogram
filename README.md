@@ -1,8 +1,12 @@
 
 
-# Audio Spectrogram
+# Audio Spectrogram 
 
-Setup environment (ubuntu)
+A live spectrogram visualizer made with pyqt5, moderngl and pyaudio.
+
+![screenshot](screenshot.png)
+
+### Setup environment (ubuntu)
 
 ```
 sudo apt install portaudio19-dev
@@ -11,13 +15,12 @@ source bin/activate
 pip install -r requirements.txt
 ```
 
-Run
+### Run
 
 ```
 make microphone
 make file
 ```
-
 
 
 
