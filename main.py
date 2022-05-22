@@ -4,6 +4,7 @@ import numpy as np
 import os
 import pyaudio
 import pyrr
+import sys
 import threading
 import time
 from functools import partial
@@ -14,8 +15,6 @@ from PyQt5.QtMultimedia import QMediaContent, QMediaPlayer, QAudioRecorder, QAud
 from PyQt5.QtWidgets import QApplication, QWidget, QGridLayout, QStackedWidget, QLabel, QVBoxLayout, QHBoxLayout, QOpenGLWidget
 from scipy.fftpack import rfft, rfftfreq
 from scipy.io import wavfile
-#x = rfftfreq(WINDOW_SIZE, 1 / sample_rate)
-
 
 
 
@@ -44,7 +43,7 @@ AXIS_HEIGHT      = 26
 
 class Spectrogram:
 
-	MAX_LOG = 16.0 # Max 16 is a design choice and not based on anything
+	MAX_LOG = 16.0
 
 	def __init__(self, theme='inferno'):
 		self.color_map = cm.get_cmap(theme, 256)
@@ -147,7 +146,7 @@ class Microphone(Source):
 
 class File(Source):
 
-	def init(self, filename='audio/gettysburg.wav'):
+	def init(self, filename):
 		self.rate, self.data = wavfile.read(filename)
 		self.stream = self.audio.open(
 			format=pyaudio.paInt16,
@@ -292,16 +291,18 @@ class Surface(QOpenGLWidget):
 
 class Main(QWidget):
 
-	def __init__(self):
+	def __init__(self, filename=None):
 		super().__init__()
 		self.init_layout()
 		self.spectrogram = Spectrogram()
 		self.texture = np.zeros((TEXTURE_HEIGHT, TEXTURE_WIDTH, 3), dtype=np.uint8)
 		
 		self.buffer = Buffer()
-
-		#self.source = Microphone()
-		self.source = File()
+		
+		if filename:
+			self.source = File(filename)
+		else:
+			self.source = Microphone()
 		
 		self._timer = QBasicTimer()
 		self._timer.start(1000 // 31, self)
@@ -414,6 +415,8 @@ class Main(QWidget):
 
 
 if __name__ == '__main__':
+
+	filename = None if len(sys.argv) <= 1 else sys.argv[1]
 	
 	# Correctly scale on high res monitors
 	QApplication.setAttribute(Qt.AA_EnableHighDpiScaling, True)
@@ -423,10 +426,10 @@ if __name__ == '__main__':
 	
 	# Create and run glwidget
 	app = QApplication([])
-
+	
 	# Create window
 	#main = Surface(1024, 512)
-	main = Main()
+	main = Main(filename)
 	main.show()
 	
 	# Run main loop
