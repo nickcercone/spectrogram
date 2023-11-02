@@ -4,8 +4,7 @@ A Python + ModernGL + PyAudio live audio spectrogram visualisation app tutorial 
 
 ![alt text](thumbnail.png)
 
-Youtube playlist link: https://www.youtube.com/playlist?list=PLswiMBSI75YtSVBBKUYY4dC20hQJ7OdAz
-
+Youtube playlist link: https://www.youtube.com/playlist?list=PLswiMBSI75YtHWBiaI8vPCXksX7_M6xa6
 
 ## Setup
 
